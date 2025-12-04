@@ -5,13 +5,10 @@ Local linear stability analysis (LSA) code for JFM Paper (2025)
 This repository contains the FreeFEM implementation used to perform local (temporal) linear stability analysis of swirling base flows, including the computation of direct modes, adjoint modes, and sensitivity fields.
 
 Primary driver:
-
 Master_loop.edp
 
 Developed at:
-
 HEAD Lab, EPFL (2025)
-
 Authors: L. Toledo, E. Yim
 
 1. Main features
@@ -33,104 +30,113 @@ Parametric sweep in azimuthal mode number m and axial wavenumber k
 The baseflow is assumed in the following form:
 
 ur = 0
-
 ut = ut(r)
-
 uz = uz(r)
 
 2. How to run
-   
 FreeFem++ Master_loop.edp
 
-4. Baseflow configuration
-   
-// baseflowType:
 
-// 1 = Draft tube vortex
+Make sure FreeFEM is compiled with PETSc + SLEPc + complex number support.
 
-// 2 = Batchelor vortex
+3. Baseflow configuration
 
-// 3 = Carton–McWilliams vortex
+baseflowType options:
 
-// hasWall: (Draft tube vortex only)
+1 = Draft tube vortex
 
-// 0 = No wall damping
+2 = Batchelor vortex
 
-// 1 = With wall damping
+3 = Carton–McWilliams vortex
 
-// idx: (Draft tube vortex only)
+hasWall (Draft tube vortex only):
 
-// 1 = 0.92 BEP (DC = 0.340)
+0 = No wall damping
 
-// 2 = 0.98 BEP (DC = 0.360)
+1 = With wall damping
 
-// 3 = 1.00 BEP (DC = 0.368)
+idx (Draft tube vortex only):
 
-// 4 = 1.03 BEP (DC = 0.380)
+1 = 0.92 BEP (DC = 0.340)
 
-// 5 = 1.06 BEP (DC = 0.390)
+2 = 0.98 BEP (DC = 0.360)
 
-// 6 = 1.11 BEP (DC = 0.410)
+3 = 1.00 BEP (DC = 0.368)
 
-// 7 = 0.95 BEP (DC = 0.350) — interpolated
+4 = 1.03 BEP (DC = 0.380)
+
+5 = 1.06 BEP (DC = 0.390)
+
+6 = 1.11 BEP (DC = 0.410)
+
+7 = 0.95 BEP (DC = 0.350) — interpolated
 
 4. Turbulence model configuration
-   
-// turbVisc:
 
-// 0 = No turbulence       (nut = 0)
+turbVisc options:
 
-// 1 = k–ε model           (requires turblength)
+0 = No turbulence (nut = 0)
 
-// 2 = Mixing length model
+1 = k–ε model (requires turblength)
 
-// 3 = Averaged k–ε nut
+2 = Mixing length model
 
-// turblength: turbulent length scale (used only if turbVisc = 1)
+3 = Averaged k–ε nut
+
+turblength: turbulent length scale (used only if turbVisc = 1)
 
 5. Adjoint and sensitivity options
-   
-// adjointFlag:
 
-// 0 = No
+adjointFlag:
 
-// 1 = Yes
+0 = No
 
-// sensFlag:
+1 = Yes
 
-// 0 = No
+sensFlag:
 
-// 1 = Yes
+0 = No
+
+1 = Yes
 
 6. Baseflow perturbation options
-   
-// perturbFlag:
 
-// 0 = No
+perturbFlag:
 
-// 1 = Yes
+0 = No
 
-// perturbType:
+1 = Yes
 
-// 0 = ur  (radial velocity)
+perturbType:
 
-// 1 = ut  (azimuthal velocity)
+0 = ur (radial velocity)
 
-// 2 = uz  (axial velocity)
+1 = ut (azimuthal velocity)
 
-// 3 = nut (turbulent viscosity)
+2 = uz (axial velocity)
 
-// gamma   = width of Gaussian
+3 = nut (turbulent viscosity)
 
-// rc      = center radius of Gaussian
+Other parameters:
 
-// epsilon = amplitude of Gaussian perturbation
+gamma = width of Gaussian
+
+rc = center radius of Gaussian
+
+epsilon = amplitude of Gaussian perturbation
 
 7. Mode sweep configuration
-   
-// mstart, mend : azimuthal mode range
 
-// kstart, kend : axial wavenumber range
+mstart, mend : azimuthal mode range
+
+kstart, kend : axial wavenumber range
+
+Example:
+
+mstart = 1
+mend   = 6
+kstart = 0.1
+kend   = 25
 
 8. Output
 
@@ -147,13 +153,11 @@ Sensitivity fields (if enabled)
 VTK files for post-processing (ParaView or Tecplot)
 
 9. Paper reference
-10. 
+
 This code supports the results presented in:
 
 L. Toledo, A. Gesla, and E. Yim (2025)
-
 Local linear stability analysis of swirling draft-tube vortex structures in hydraulic turbines
-
 Journal of Fluid Mechanics (under review)
 
 The final citation and DOI will be added upon acceptance.
