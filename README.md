@@ -36,8 +36,7 @@ uz = uz(r)
 2. How to run
 FreeFem++ Master_loop.edp
 
-
-Make sure FreeFEM is compiled with PETSc + SLEPc + complex number support.
+Options for manual selection of simulation parameters or for using an input script (input_script.edp).
 
 3. Baseflow configuration
 
