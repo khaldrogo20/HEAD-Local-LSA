@@ -1,0 +1,159 @@
+// =========================================================
+// 3_Sensitivity.edp
+// Sensitivity Analysis
+// =========================================================
+
+// ---------------------------------------------------------
+// Read previous results from Direct and Adjoint EVP.
+// ---------------------------------------------------------
+
+// Read direct eigenvectors. 
+{ ifstream file(dirsubfolder + "ur.dat"); file >> upert[]; } 
+{ ifstream file(dirsubfolder + "ut.dat"); file >> vpert[]; } 
+{ ifstream file(dirsubfolder + "uz.dat"); file >> wpert[]; }
+
+// Read adjoint eigenvectors. 
+{ ifstream file(adjsubfolder + "uradj.dat"); file >> uadj[]; } 
+{ ifstream file(adjsubfolder + "utadj.dat"); file >> vadj[]; } 
+{ ifstream file(adjsubfolder + "uzadj.dat"); file >> wadj[]; }
+
+//Double check if they're normalized
+complex normpert = int1d(Th)(x*(conj(upert)*upert + conj(vpert)*vpert + conj(wpert)*wpert));
+cout << "<u, u> = " << normpert << endl;
+
+complex normadj = int1d(Th)(x*(conj(upert)*uadj + conj(vpert)*vadj + conj(wpert)*wadj));
+cout << "<u+, u> = " << normadj << endl;
+
+// ---------------------------------------------------------
+// Sensitivity of eigenvalue to baseflow modifications.
+// ---------------------------------------------------------
+
+//Macro for complex derivatives.
+macro der(r, a, b) ( r*conj(a)*dx(b) + r*b*conj(dx(a)) + conj(a)*b )//   					dx(r*conj(a)*b)
+macro dersq(rsq, a, b) ( rsq*conj(a)*dx(b) + rsq*b*conj(dx(a)) + 2*sqrt(rsq)*conj(a)*b)// 			dx(r^2*conj(a)*b)
+macro dercube(rcube, a, b) ( rcube*conj(a)*dx(b) + rcube*b*conj(dx(a)) + 3*rcube^(2./3)*conj(a)*b)// 			dx(r^2*conj(a)*b)
+
+//Sensitivity to U_r baseflow
+Xh<complex> SensUrTrans, SensUrProd, SensUr; 
+
+SensUrTrans = -( conj(dx(upert))*uadj + conj(dx(vpert))*vadj + conj(dx(wpert))*wadj);
+
+func SensUrProdFunc = (1./r)*der(r, upert, uadj) - (1./r)*conj(vpert)*vadj;
+ComplexProj(SensUrProd, SensUrProdFunc);
+
+SensUr = SensUrTrans + SensUrProd;
+
+//Sensitivity to U_theta baseflow
+Xh<complex> SensUtTrans, SensUtProd, SensUt; 
+
+func SensUtTransFunc =  ( (1./r)*1i*mt*conj(upert)*uadj
+							          + (1./r)*1i*mt*conj(vpert)*vadj 
+							          + (1./r)*1i*mt*conj(wpert)*wadj );
+
+func SensUtProdFunc =  (  (2./r)*conj(vpert)*uadj 
+                        + (1./r)*der(r, upert, vadj) - (1./r)*conj(upert)*vadj );
+
+ComplexProj(SensUtTrans, SensUtTransFunc);
+SensUtTrans = SensUtTrans;
+ComplexProj(SensUtProd, SensUtProdFunc);
+SensUtProd = SensUtProd;
+
+SensUt =  SensUtTrans + SensUtProd;
+
+//Sensitivity to U_z baseflow
+Xh<complex> SensUzTrans, SensUzProd, SensUz; 
+
+SensUzTrans =  (  1i*kz*conj(upert)*uadj
+							  + 1i*kz*conj(vpert)*vadj 
+                + 1i*kz*conj(wpert)*wadj);
+
+func SensUzProdFunc =  ( (1./r)*der(r, upert, wadj) );
+ComplexProj(SensUzProd, SensUzProdFunc);
+
+SensUz =  SensUzTrans + SensUzProd;
+
+// ---------------------------------------------------------
+// Sensitivity of eigenvalue to turbulent viscosity.
+// ---------------------------------------------------------
+
+//Additional macro for complex derivatives.
+macro derdoub(a,b) (conj(dx(a))*b + conj(a)*dx(b))// 		dx(conj(a)*b)
+macro derdiv(r, a, b) ( r*conj(dx(a))*dx(b) + r*b*conj(dxx(a)) + conj(dx(a))*b )// 		dx(r^2*conj(dx(a))*b)
+macro derdiff(rsq, a, b) ( rsq*conj(dx(a))*dx(b) + rsq*b*conj(dxx(a)) + 2*sqrt(rsq)*conj(dx(a))*b )// 		dx(r^2*conj(dx(a))*b)
+
+//Note: Cr, Ctheta, Cz, Dr, Dtheta, Dz all needs to be conjugated.
+
+//Sensitivity to turbulent diffusion
+Xh<complex> SensNUturbDiss, SensNUturbTrans, SensNUturb;
+
+func SensNUturbDissFunc =   conj( dxx(upert) + (1./r)*dx(upert) - ((mt^2 + 1)/(r^2) + (kz^2))*upert - (1./(r^2))*2*1i*mt*vpert ) * uadj
+  				    	             + conj( dxx(vpert) + (1./r)*dx(vpert) - ((mt^2 + 1)/(r^2) + (kz^2))*vpert + (1./(r^2))*2*1i*mt*upert ) * vadj 
+	  			    	             + conj( dxx(wpert) + (1./r)*dx(wpert) - ((mt^2    )/(r^2) + (kz^2))*wpert      						        ) * wadj;
+
+//Sensitivity to turbulent gradient
+func SensNUturbTransFunc =  - (2./r) * ( derdiv(r, upert, uadj) )
+					     	               - (1./r) * ( derdiv(r, vpert, vadj) - 1i*mt*derdoub(upert, vadj) - derdoub(vpert, vadj) )
+					                  	 - (1./r) * ( derdiv(r, wpert, wadj) - 1i*kz*der(r, upert, wadj) );
+
+ComplexProj(SensNUturbDiss, SensNUturbDissFunc);
+ComplexProj(SensNUturbTrans, SensNUturbTransFunc);
+
+SensNUturb = SensNUturbDiss + SensNUturbTrans;
+
+
+//Wavemaker field: Sensitivity to a local feedback of the bifurcating global mode.
+Xh wavemaker = abs(uadj)*abs(upert) + abs(vadj)*abs(vpert) + abs(wadj)*abs(wpert);
+
+// ---------------------------------------------------
+// Save sensitivites LaTeX-ready profile
+// ---------------------------------------------------
+{ ofstream sensitivitylatex(senssubfolder + "sensitivity_"+ "m=" + mt + "_k="+ kz + "_idx=" + idx + "_nuT=" + turbVisc + "_.txt");
+  sensitivitylatex.precision(20);   
+
+  // Write header
+  sensitivitylatex << "k r realSensUr realSensUt realSensUz imagSensUr imagSensUt imagSensUz realrTrans realtTrans realzTrans realrProd realtProd realzProd realSensNUturb imagSensNUturb realturbDiss realturbTrans wavemaker" << endl;
+
+  real drsave = 0.0001;             // desired radial spacing
+  real lastr = 1e-10;               // initialize with a far value
+  
+  for (int i = 0; i < uadj.n; i++) 
+  { real ri = r[][i];
+    if (ri - lastr >= drsave - 1e-12) 
+    {   sensitivitylatex << kz << " " << ri << " " 
+        << real(SensUr[][i])      << " " << real(SensUt[][i])      << " " << real(SensUz[][i]) << " " 
+        << -imag(SensUr[][i])     << " " << -imag(SensUt[][i])     << " " << -imag(SensUz[][i]) << " "
+        << real(SensUrTrans[][i]) << " " << real(SensUtTrans[][i]) << " " << real(SensUzTrans[][i]) << " " 
+        << real(SensUrProd[][i])  << " " << real(SensUtProd[][i])  << " " << real(SensUzProd[][i])  << " " 
+        << real(SensNUturb[][i])  << " " << -imag(SensNUturb[][i]) << " " << real(SensNUturbDiss[][i]) << " " 
+        << real(SensNUturbTrans[][i]) << " " << wavemaker[][i]  << endl;
+        lastr = ri;
+    }
+  }
+}
+
+// ---------------------------------------------------
+// Calculation for eigenvalue shift/prediction.
+// ---------------------------------------------------
+// Perturb Baseflow
+real gamma = 0.01;
+real rc = 0.1;
+real epsilon = 1e-6;
+int perturb = 1;    
+Xh deltaut0 = exp(-((r - rc)^2)/(gamma^2));
+
+complex shift = 0;
+if (perturb==1){ shift = int1d(Th)(x * conj(SensUt) * deltaut0 ); }
+else if (perturb==2){ shift = int1d(Th)(x * conj(SensUz) * deltaut0 ); }
+else if (perturb==3){ shift = int1d(Th)(x * conj(SensNUturb) * deltaut0 ); }
+else{ cout << "No perturbation option selected." << endl;
+      exit(0); }
+
+shift = epsilon*shift;
+
+// Print eigenvalue shift.
+cout.precision(20);
+cout << "====================================================================\n";
+cout << ">>> Computing eigenvalue shift (prediction) based on sensitivity..." << endl;
+cout << "eigenvalue shift (d sigma) = " << shift << endl;
+cout << "growth rate shift (d lambda) = " << real(shift) << endl;
+cout << "frequency shift (d omega) = " << imag(shift) << endl;

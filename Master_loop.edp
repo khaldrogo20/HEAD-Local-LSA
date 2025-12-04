@@ -1,0 +1,235 @@
+// ===============================================================================================================
+// Run: FreeFem++ Master_loop.edp
+// Driver script for temporal LSA (direct + adjoint + sensitivity)
+// Code credits: HEAD Lab. EPFL, 2025 (L. Toledo, E. Yim) 
+// Code details: Local linear stability analysis for arbitrary baseflow (ur = 0; ut = ut(r); uz = uz(r);) 
+// ===============================================================================================================
+
+include "getARGV.idp"
+load    "iovtk"                                    
+load    "UMFPACK64"
+//verbosity = 0;
+
+// -----------------------------
+// Control parameters
+// -----------------------------
+complex sigma; 
+real kz, Rey, rmax, Omb, kstep; 
+int nev, nn, mt, numM, numK;                
+
+// ===========================================================================================
+// BASEFLOW CONFIGURATIONS AND SOLVER OPTIONS
+// ===========================================================================================
+include "Read_user_input.edp"
+
+sigma = 0.10- 1i*4.0; 
+//sigma = 0.01 - 1i*mt;     // Initial shift value.
+Omb = 0.;                   // No background rotation ( Omb = 0.5*f; f = 2./Ro )
+nev = 100;	                // No. of eigenvalues to be searched
+nn = 1000;                  // Grid resolution	(use 1000 when finding spectrum)
+kstep = 0.5;                  // Axial wavenumber increment       
+
+if (baseflowType == 1)     { rmax = 1.063;} // Max radius (non-dimensional); rmax = 0.2126 / 0.20
+else                       { rmax = 15; } 
+
+// -----------------------------
+// Mesh and FE spaces
+// -----------------------------	
+meshL Th = segment(rmax*nn, [rmax * x^1.2]);
+func Pk = [P2,P2,P2,P1];
+fespace VVh(Th,Pk);
+fespace Xh(Th,P2);	
+fespace Mh(Th,P1);
+
+Xh ur0, ut0, uz0, Omega, r, tke, dimTKE, nut, delta;
+Xh<complex> upert, vpert, wpert;
+Xh<complex> uadj, vadj, wadj;
+Mh p0;
+
+include "Functions.edp"
+
+// =======================================================================
+// SIMULATION HEADER
+// =======================================================================
+cout << "\n=================================================================\n";
+cout << "  Temporal LINEAR STABILITY & SENSITIVITY ANALYSIS (FreeFEM++)\n";
+cout << "  Version 15.11.2025 - HEAD Lab., EPFL, Switzerland \n";
+cout << "  Developed by: L. Toledo & E. Yim \n";
+cout << "=================================================================\n";
+cout << "Baseflow Profile           = " << baseflowName  << endl;
+if (baseflowType == 1) { 
+cout << "Wall Damping               = " << hasWall       << endl;
+cout << "Vortex Profile Index       = " << idxName       << endl; }
+cout << "Turbulence model           = " << turbViscName  << endl;
+if (turbVisc == 1 || turbVisc == 3){
+cout << "Turb. length scale         = " << turblength    << endl; }  
+cout << "Adjoint Solve              = " << adjointFlag   << endl;
+cout << "Sensitivity Solve          = " << sensFlag      << endl;
+cout << "nev (No. of eigenvalues)   = " << nev           << endl;
+cout << "Maximum radius (rmax)      = " << rmax          << endl;
+cout << "Mesh Resolution (nn*rmax)  = " << nn*rmax       << endl;
+cout << "m-range (for loop)         = [" << mstart << ", " << mend << "]\n";
+cout << "k-range (for loop)         = [" << kstart << ", " << kend << "]\n";
+cout << "k step                     = " << kstep << endl;
+cout << "=================================================================\n";
+cout << "Perturb Baseflow?          = " << perturbFlag     << endl;
+if (perturbFlag == 1) { 
+cout << "Apply perturbation to      : " << perturbTypeName << endl;
+cout << "gamma                      = " << gamma           << endl;
+cout << "rc (0 - 1)                 = " << rc              << endl; 
+cout << "epsilon (ex: 1e-4)         = " << epsilon         << endl;}
+cout << "=================================================================\n\n";
+
+// =======================================================================
+// DIRECTORY SETUP
+// =======================================================================
+string savdirbaseType=  "./" + baseflowName;
+exec("mkdir -p "+savdirbaseType); 
+
+string savdirbase   = savdirbaseType + "/0_base/";
+string savdirdirect = savdirbaseType + "/1_direct/";
+string savdiradj    = savdirbaseType + "/2_adjoint/";
+string savdiradj2   = savdirbaseType + "/2_adjoint_2nd/";
+string savdirsens   = savdirbaseType + "/3_sensitivity/";
+string savdirsens2  = savdirbaseType + "/3_sensitivity_2nd/";
+
+exec("mkdir -p "+savdirbase); 
+// ----------------------------------------------------------------------
+// Ask user if they want to review configurations or start simulation
+// ----------------------------------------------------------------------
+string proceedFlag;
+cout << "Do you want to start the simulation now? (y/n): ";
+cin >> proceedFlag;
+
+if (proceedFlag == "y" || proceedFlag == "Y") {
+  cout << "Starting simulation...\n";
+}
+else {
+  cout << "Exiting program.\n";
+  exit (0);
+}
+
+// ----------------------------------------------------------------------
+// Solve Baseflow
+// ----------------------------------------------------------------------
+cout << "\n=================================================================\n";
+cout << ">>> Solving Baseflow..." << endl;
+include "0_Baseflow.edp"
+cout << ">>> Reynolds no..." << Rey << endl;
+cout << "=================================================================\n";
+//exit (0);
+// ===========================================================================================
+// LOOP OVER m
+// ===========================================================================================
+mt = mstart;
+complex sigmaorig = sigma;
+real ksteporig = kstep;
+while (mt <= mend)
+{ 
+  // --------------------------------------------------------
+  // Create per-baseflow, turbulence model, and m directory
+  // --------------------------------------------------------
+  string dirsubfolder = savdirdirect + "idx_" + idx + "_turb_model_" + turbVisc + "_m_" + mt + "/";
+  exec("mkdir -p " + dirsubfolder);
+  cout << "Created: " << dirsubfolder << endl;
+
+  string adjsubfolder, adj2subfolder;
+  if(adjointFlag == 1){
+    adjsubfolder = savdiradj + "idx_" + idx + "_turb_model_" + turbVisc + "_m_" + mt + "/";
+    exec("mkdir -p " + adjsubfolder);
+    cout << "Created: " << adjsubfolder << endl;
+
+    adj2subfolder = savdiradj2 + "idx_" + idx + "_turb_model_" + turbVisc + "_m_" + mt + "/";
+    exec("mkdir -p " + adj2subfolder);
+    cout << "Created: " << adj2subfolder << endl;
+  }
+
+  string senssubfolder, sens2subfolder;
+  if(sensFlag == 1){
+    senssubfolder = savdirsens + "idx_" + idx + "_turb_model_" + turbVisc + "_m_" + mt + "/";
+    exec("mkdir -p " + senssubfolder);
+    cout << "Created: " << senssubfolder << endl;
+
+    sens2subfolder = savdirsens2 + "idx_" + idx + "_turb_model_" + turbVisc + "_m_" + mt + "/";
+    exec("mkdir -p " + sens2subfolder);
+    cout << "Created: " << sens2subfolder << endl;
+  }
+
+  cout << "\n-----------------------------------------------------\n";
+  cout << "RUNNING m = " << mt << "\n";
+  cout << "Directory = " << dirsubfolder << endl;
+  cout << "-----------------------------------------------------\n";
+
+  // ===============================================================================================
+  // LOOP OVER k
+  // ===============================================================================================
+  int iter = 0; int corr;
+  real shiftR, shiftI, diffR, diffI, cc;
+  bool unstable = false;
+  kz = kstart;
+  sigma = sigmaorig; 
+  while (kz <= kend) 
+  {
+    if (mt > 0) {corr = mt;}
+    else if (mt == 0) {corr = 0.5;}
+    else {corr = 1;}
+
+    if (kz<=10){kstep = 0.5; cc=0.5*corr;}
+    else if (kz>10 && kz <30){kstep = ksteporig; cc=0.25*corr;}
+    else if (kz>=30 && kz <60){kstep = ksteporig*2.; cc=0.1*corr;}
+    else {kstep = ksteporig*4.; cc=0;}
+
+    shiftR = real(sigma);
+    shiftI = imag(sigma);   
+
+    // Update sigma
+    int signshiftI = (shiftI > 0) ? 1 : (shiftI < 0 ? -1 : 0);
+    sigma = max(real(sigma) + abs(diffR) + 0.1, 0.25) + 1i * min((shiftI + diffI + signshiftI*cc), -1.0); //
+
+    cout << "\n====================== k LOOP ========================\n";
+    cout << "m = " << mt << endl;
+    cout << "k = " << kz << endl;
+    cout << "Current shift = " << sigma << endl;
+    cout << "======================================================\n";
+
+    // ------------------------------
+    // Direct EVP
+    // ------------------------------
+    cout << ">>> Solving DIRECT EVP..." << endl;
+    include "1_Direct_EVP.edp"
+
+    // Use leading eigenvalue of the previous k as the new shift. 
+    diffR = real(ev(indmax)) - shiftR;
+    diffI = imag(ev(indmax)) - shiftI;
+
+    sigma = ev(indmax);
+    cout << ">>> New shift (previous leading eigenvalue) = " << sigma << endl;
+
+    // ------------------------------
+    // Adjoint EVP
+    // ------------------------------
+    if (adjointFlag == 1) {
+       cout << "======================================================\n";
+       cout << ">>> Solving ADJOINT EVP..." << endl;
+       include "2_Adjoint_EVP.edp";
+       include "2_Adjoint_EVP_2nd.edp";
+    }
+
+    // ------------------------------
+    // Sensitivity 
+    // ------------------------------
+    if (sensFlag == 1) {
+      cout << "======================================================\n";
+      cout << ">>> Computing sensitivity..." << endl;
+      include "3_Sensitivity.edp";
+      include "3_Sensitivity_2nd.edp";
+    }
+  kz += kstep;
+  }
+mt += 1;
+}
+
+cout << "\n===================================================================\n";
+cout << "             MASTER LOOP FINISHED SUCCESSFULLY\n";
+cout << "         2025 HEAD Lab, EPFL. All rights reserved.\n";
+cout << "=====================================================================\n\n";

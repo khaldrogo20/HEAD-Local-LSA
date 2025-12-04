@@ -1,0 +1,4 @@
+
+real lm = 0.025;  // 0.02 (large), 0.02236 (slightly large), 0.03(a bit small), 0.025
+
+nut = lm^2*sqrt((r*dx(Omega))^2.+(dx(uz0))^2.);

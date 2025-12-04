@@ -1,0 +1,163 @@
+// --------------------------------------------------
+// Configuration: toggle interactive input
+// --------------------------------------------------
+int useInteractiveInput, baseflowType, idx, turbVisc, hasWall, adjointFlag, sensFlag, perturbFlag, perturbType;
+real turblength, gamma, rc, epsilon, q, a, g, W0;
+string baseflowName, idxName, turbViscName, perturbTypeName;
+
+int mstart, mend;
+real kstart, kend; 
+
+cout << "\n\n==================================================================================\n";
+cout << "           HEAD Linear Stability Analysis in FreeFem++ (HLiSAFF)\n";
+cout << "==================================================================================\n";
+cout << "Do you want to manually input parameters (0 = no (use input_script), 1 = yes): ";
+cin >> useInteractiveInput; 
+
+// --------------------------------------------------
+// Interactive input block
+// --------------------------------------------------
+if (useInteractiveInput == 1) {
+    cout << "=====================================================\n";
+    cout << "             Input desired parameters \n";
+    cout << "=====================================================\n";
+    cout << "Select baseflow profile:\n";
+    cout << "  1: Draft tube vortex\n";
+    cout << "  2: Batchelor vortex\n";
+    cout << "  3: Carton-Mcwilliams vortex\n";
+    cout << "Enter choice (1, 2, 3): ";
+    cin >> baseflowType;
+    cout << "=====================================================\n";
+
+    if (baseflowType == 1){
+    hasWall = 1; // Automatically set wall damping/regularization
+    // ----------------------------------------------------------------------
+    // Additional physical model inputs
+    // ----------------------------------------------------------------------
+    cout << "Only applicable for Draft tube Swirling Jet. " << endl;
+
+    cout << "Select turbine vortex profile index:\n";
+    cout << "  1: 0.92 BEP (DC = 0.340)\n";
+    cout << "  2: 0.98 BEP (DC = 0.360)\n";
+    cout << "  3: 1.00 BEP (DC = 0.368)\n";
+    cout << "  4: 1.03 BEP (DC = 0.380)\n";
+    cout << "  5: 1.06 BEP (DC = 0.390)\n";
+    cout << "  6: 1.11 BEP (DC = 0.410)\n";
+    cout << "  7: 0.95 BEP (DC = 0.350) - interpolated\n";
+    cout << "Enter choice (1-7): ";
+    cin >> idx;
+    cout << "=====================================================\n";
+    }  
+
+    else if (baseflowType == 2)  {  baseflowName = "Batchelor_vortex";
+                                    cout << "Enter value of swirl parameter (q): ";
+                                    cin >> q;
+                                    cout << "Enter Reynolds number (Re): ";
+                                    cin >> Rey;
+                                 }
+    else if (baseflowType == 3)  {  baseflowName = "Carton-Mcwilliams_vortex";
+                                    cout << "Enter value of alpha (a): ";
+                                    cin >> a;
+                                    cout << "Enter value of gamma (g): ";
+                                    cin >> g;
+                                    cout << "Enter value of axial flow magnitude (W0): ";
+                                    cin >> W0;
+                                    cout << "Enter Reynolds number (Re): ";
+                                    cin >> Rey;
+                                 }
+    else{                        cout << "Unknowm baseflow. Choose from available baseflow." << endl;
+                                 exit (0); }
+
+    cout << "You selected: " << baseflowName << endl;
+    cout << "=====================================================\n";
+
+    cout << "Select turbulence viscosity model:\n";
+    cout << "  1: k-epsilon Model \n";
+    cout << "  2: Mixing Length Model \n";
+    cout << "  3: averaged k-eps nut\n";
+    cout << "  0: nut = 0 (No turbulent effects)\n";
+    cout << "Enter choice: ";
+    cin >> turbVisc;
+
+    // Assign readable turbulence model name
+    if (turbVisc == 1){ cout << "Enter turb. length scale (0.004, 0.01, 0.02) : ";
+                        cin >> turblength; }       
+    cout << "=====================================================\n";
+
+    // ----------------------------------------------------------------------
+    // Ask for adjoint and sensitivity
+    // ----------------------------------------------------------------------
+    cout << "Solve adjoint? (0 = no, 1 = yes): ";
+    cin >> adjointFlag;
+
+    cout << "Solve sensitivity? (0 = no, 1 = yes): ";
+    cin >> sensFlag;
+
+    // ----------------------------------------------------------------------
+    // Perturb baseflow
+    // ----------------------------------------------------------------------
+    cout << "Perturb baseflow? (0 = no, 1 = yes): ";
+    cin >> perturbFlag;
+
+    if(perturbFlag == 1){
+        cout << "Which variable? (0 = ur (radial), 1 = ut (azimuthal), 2 = uz (axial), 3 = nut (turb. vis.)): ";
+        cin >> perturbType;
+
+        cout << "Input Gaussian perturbation parameters: " << endl;
+        cout << "gamma (Gaussian width): ";
+        cin >> gamma;
+        cout << "rc (center of Gaussian): ";
+        cin >> rc;
+        cout << "epsilon (magnitude of Gaussian): ";
+        cin >> epsilon;
+
+        // Assign readable perturbation name
+        if (perturbType == 0){ perturbTypeName = "ur"; }       
+        else if (perturbType == 1){ perturbTypeName = "ut"; } 
+        else if (perturbType == 2){ perturbTypeName = "uz"; }
+        else if (perturbType == 3){ perturbTypeName = "knut"; }  
+        else                      { cout << "Invalid perturbation type. " << endl;
+                                    exit (0); }
+        cout << "=====================================================\n";
+    }
+
+    // Enter parameters for m loop.
+    cout << "Start value of m loop: ";
+    cin >> mstart;
+    cout << "End value of m loop: ";
+    cin >> mend;
+    cout << "=====================================================\n";
+
+    // Enter parameters for k loop.
+    cout << "Start value of k loop: ";
+    cin >> kstart;
+    cout << "End value of k loop: ";
+    cin >> kend;
+    cout << "=====================================================\n";
+}
+else { include "Input_script.edp"; }
+
+// Identify baseflowName.
+if (baseflowType == 1)     { baseflowName = "Draft_tube_vortex";
+                            if      (idx == 1) idxName = "0.92 BEP (DC = 0.340)";
+                            else if (idx == 2) idxName = "0.98 BEP (DC = 0.360)";
+                            else if (idx == 3) idxName = "1.00 BEP (DC = 0.368)";
+                            else if (idx == 4) idxName = "1.03 BEP (DC = 0.380)";
+                            else if (idx == 5) idxName = "1.06 BEP (DC = 0.390)";
+                            else if (idx == 6) idxName = "1.11 BEP (DC = 0.410)";
+                            else if (idx == 7) idxName = "0.95 BEP (DC = 0.350) - interpolated";
+                            else               idxName = "Unknown profile"; }  
+else if (baseflowType == 2)  baseflowName = "Batchelor_vortex";
+else if (baseflowType == 3)  baseflowName = "Carton-Mcwilliams_vortex";
+else{                        cout << "Unknown baseflow. Choose from available baseflow." << endl;
+                             exit (0); }
+
+// Assign readable turbulence model name
+if (turbVisc == 1)      turbViscName = "k-epsilon Model";       
+else if (turbVisc == 2) turbViscName = "Mixing Length Model";
+else if (turbVisc == 3) turbViscName = "averaged k-eps nu_t";
+else                    turbViscName = "nut = 0";
+
+// --------------------------------------------------
+// Continue with simulation using collected parameters
+// --------------------------------------------------

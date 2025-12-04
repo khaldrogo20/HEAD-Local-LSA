@@ -1,0 +1,90 @@
+// -----------------------------------------
+// Baseflow configuration
+// 1: Draft tube swirling jet
+// 2: Batchelor vortex
+// 3: Carton-Mcwilliams vortex
+// -----------------------------------------
+
+r = x;	          
+
+// 1: Draft tube swirling jet
+if(baseflowType == 1){
+  Xh regfunc = 1.0;
+  if (hasWall>0.0) { regfunc = (1 - exp(50*(r-rmax)))/(1 + exp(50*(r-rmax))); } // step decay (Damping near wall) so c_0 = 50?
+
+  include "TurbineVortexProfiles.edp";
+  
+  func OmegaFunc = Omega0 + Omega1*R1^2*(1 - exp(-(r^2/R1^2)))/(r^2) + Omega2*R2^2*(1 - exp(-(r^2/R2^2)))/(r^2);
+
+  Xh OmegaSol;
+  Proj(OmegaSol, OmegaFunc);
+
+  Omega = OmegaSol*regfunc;
+  uz0 = U0 + U1 * exp(-(r^2/R1^2)) + U2 * exp(-(r^2/R2^2));						// V_z 
+
+  // Final baseflow velocities.
+  ur0 = 0;
+  ut0 = r*Omega;
+  uz0 = uz0*regfunc;
+  p0 = 0;
+
+  // -----------------------------------------
+  // Turbulent viscosity setup & data export
+  // -----------------------------------------
+  if      (turbVisc==1) { include "TurbViscosity.edp"}
+  else if (turbVisc==2) { include "TurbViscosity_mixingLength.edp" }
+  else if (turbVisc==3) { include "TurbViscosity.edp"
+                          cout << "Based on turb. length: " << turblength << endl;
+                          real nutAve = int1d(Th)(x*nut)/int1d(Th)(x);
+                          nut = nutAve; }
+  else                  { nut = 0.0; }
+}
+// 2: Batchelor vortex (Billant & Gallaire 2013., p7)
+else if(baseflowType == 2){ ur0 = 0;
+
+                            func ut0Func = (q/r)*(1 - exp(-r*r));
+                            Proj(ut0, ut0Func);
+
+                            uz0 = exp(-r*r); 
+                            nut = 0; }
+// 3: Carton-Mcwilliams vortex
+else if(baseflowType == 3){ ur0 = 0;
+                            ut0 = r*exp(-r^a);
+                            uz0 = W0*exp(-r^g); 
+                            nut = 0; }
+else{
+  cout << "Choose a valid baseflow profile!" << endl;
+  exit(0);
+}
+
+// Add perturbation if selected.
+delta = 0;
+  if(perturbFlag == 1){
+    delta = epsilon * exp(-((x - rc)^2)/(gamma^2));
+
+    if (perturbType == 0){ ur0 = ur0 + delta; }       
+    else if (perturbType == 1){ ut0 = ut0 + delta; } 
+    else if (perturbType == 2){ uz0 = uz0 + delta; }
+    else if (perturbType == 3){ nut = nut + delta; }  
+  }
+
+// Save baseflow profile to txt file.
+{ ofstream baseflow(savdirbase + "Baseflow_" + "_idx=" + idx + "_turb_model_" + turbVisc + "_.txt");
+  baseflow.precision(8);   
+  baseflow << "r ur0 Omega ut0 uz0 TKE dimTKE nut" << endl;    // Header
+
+  if (turbVisc != 1) {tke = 0; dimTKE =0;}
+
+  real drsave = 0.0001;             // desired radial spacing
+  real lastr = 1e-10;               // initialize with a far value
+
+  for (int i = 0; i < ur0.n; i++) 
+  { real ri = r[][i];
+    if (ri - lastr >= drsave - 1e-12) 
+    {   baseflow << ri << " "
+                   << ur0[][i] << " " << Omega[][i] << " " << ut0[][i] << " "
+                   << uz0[][i] << " " << tke[][i]   << " " << dimTKE[][i] << " " << nut[][i] << endl;
+        lastr = ri;
+    }
+  }
+}

@@ -1,0 +1,15 @@
+// k-epsilon model
+real l = turblength * 0.20/Rref;
+real Cmu = 0.09;
+
+// Turbulent Kinetic Energy
+
+func tkeFunc = kC * exp(-r^2 / RC^2) + kB * (rmax - RB) / ( rmax - r) * (1 - exp(-((rmax - r)^2) / (rmax - RB)^2));
+Proj(tke, tkeFunc);
+
+// Turbulent viscosity
+func nutFunc = l * Cmu^(0.25) * sqrt(tke);
+Proj(nut, nutFunc);
+
+// recover dimensional tke for comparison
+dimTKE = tke * Uref^2;

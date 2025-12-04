@@ -1,0 +1,178 @@
+// =========================================================
+// 2_Adjoint_EVP.edp
+// Adjoint Eigenvalue Problem
+// =========================================================
+
+// ---------------------------------------------------------
+// Read previous results from Direct EVP.
+// ---------------------------------------------------------
+
+// Read direct eigenvectors. 
+{ ifstream file(dirsubfolder + "ur.dat"); file >> upert[]; } 
+{ ifstream file(dirsubfolder + "ut.dat"); file >> vpert[]; } 
+{ ifstream file(dirsubfolder + "uz.dat"); file >> wpert[]; }
+
+// ---------------------------------------------------------
+// Adjoint EVP: operators and assembly
+// ---------------------------------------------------------
+
+// Macro for complex derivatives
+macro der1(x, a) ( a + x*dx(a))//   					                    dx(x*a)
+macro der2(x, a, b) ( a*b + x*dx(a)*b + x*a*dx(b) )//   					dx(x*a*b)
+
+// Mass matrix
+varf Mass([ur,ut,uz,p],[vr,vt,vz,q])  =  int1d(Th)(x*(uz*vz+ur*vr+ut*vt)) ; 
+
+// Operator
+varf ShiftOPm2([ur,ut,uz,p],[vr,vt,vz,q]) = 
+  int1d(Th)(- (x*( - 2.*Omb*ut           ) + ((ut0*1i*mt*ur + x*uz0*1i*kz*(ur)) - 2*ut0*ut))*vr         - x*(ur0*dx(ur) + ur*dx(ur0))*vr
+            - (x*( 2.*Omb*ur   )  + ((ut0*1i*mt*ut + x*uz0*1i*kz*(ut)) + x*ur*dx(ut0)  + ut0*ur ))*vt   - x*(ur0*dx(ut) + (1./x)*ur0*ut)*vt
+            - (((ut0*1i*mt*uz + x*uz0*1i*kz*(uz)) + x*ur*dx(uz0) ))*vz                                  - x*(ur0*dx(uz))*vz
+            - (nu+nut) * 
+                  ( x*kz^2*(ur)*(vr) - dx(ur)*vr + ((mt^2+1)*ur*vr + 2i*mt*ut*vr)/x +
+                    x*kz^2*(ut)*(vt) - dx(ut)*vt + ((mt^2+1)*ut*vt - 2i*mt*ur*vt)/x +
+                    x*kz^2*(uz)*(vz) - dx(uz)*vz + ((mt^2  )*uz*vz)/x
+                                                                )
+            - ( dx(ur)*(nu*der1(x,vr) + der2(x,nut,vr)) +
+                dx(ut)*(nu*der1(x,vt) + der2(x,nut,vt)) +
+                dx(uz)*(nu*der1(x,vz) + der2(x,nut,vz)) 
+              )
+            + (x*2.0*dx(nut)*dx(ur)*vr + 
+                     dx(nut)*(x*dx(ut) + 1i*mt*ur - ut)*vt +
+                     dx(nut)*(x*1i*kz*ur + x*dx(uz))*vz     
+            )
+            + p*( x*dx(vr) + vr - 1i*mt*vt - x*1i*kz*(vz))
+            - q*( x*dx(ur) + ur + 1i*mt*ut + x*1i*kz*(uz))
+            - q*p*0.00000000001
+      	   - sigma*(uz*vz+ur*vr+ut*vt+p*q*0.)*x
+           )
+            + on(2,ur=0., ut=0., uz=0.);  // r=rMax 
+
+// Conditional statement for Axis BC
+matrix<complex> bcExpr;
+if (mt == 0) {
+    varf bcForm([ur, ut, uz, p], [vr, vt, vz, q]) = on(1, ur=0., ut=0.);
+    bcExpr = bcForm(VVh, VVh);
+} else if (abs(mt) == 1) {
+    varf bcForm([ur, ut, uz, p], [vr, vt, vz, q]) = on(1, uz=0., p=0.);
+    bcExpr = bcForm(VVh, VVh);
+} else {
+    varf bcForm([ur, ut, uz, p], [vr, vt, vz, q]) = on(1, ur=0., ut=0., uz=0.);
+    bcExpr = bcForm(VVh, VVh);
+}
+
+// Assemble Shift operator
+matrix<complex> OP = ShiftOPm2(VVh,VVh,solver=UMFPACK);
+
+// Add matrices (main operator + axis BC)
+OP += bcExpr; 
+
+matrix<complex> B  =    Mass(VVh,VVh,solver=UMFPACK); 
+// Other solver options: UMFPACK, GMRES, CG, sparsesolver
+
+// Get complex conjugate of sigma
+sigma= conj(sigma);
+
+// Get Hermitian of operator OP
+matrix<complex> OPAdj = OP';
+set(OPAdj,solver=UMFPACK);
+
+// ----------------------------------------
+// Solve eigenvalue problem
+// ----------------------------------------
+complex[int] ev(nev); 
+VVh<complex>[int] [eV,evpert,evpert2,eV2](nev);
+
+int k = EigenValue(OPAdj,B,sigma=sigma,value=ev,vector=eV,tol=1.e-12,maxit=10000,ncv=200);
+
+int iii = 1;
+Xh uxresult=real(eV[iii]);
+
+// Sort eigenvalues by growth rate and pick leading mode 
+real[int] freq = ev.im;
+real[int] grwt = ev.re;
+int[int] ii(0:grwt.n-1);
+sort(grwt,ii);              // sort min to max 
+int indmax = ii(ii.n-1);
+
+cout.precision(20);
+cout << "max growth rate" << ev(indmax) << "...check..." << grwt.max << endl;
+
+// Make sure that the captured leading eigenvalue is the conjugate of the direct leading eigenvalue
+real[int] err(grwt.n);
+for(int i=0; i<grwt.n; i++){err[i] = abs(grwt[i] - real(sigma));}
+int[int] errspectrum(0:grwt.n-1);
+sort(err,errspectrum); 
+int adjev = errspectrum(errspectrum.n-1);
+
+cout << "true max growth rate" << ev(adjev) << "...check..." << sigma << endl;
+indmax = adjev; // replace with correct eigenvalue
+
+Xh<complex> uadj, vadj, wadj, uadj2, vadj2, wadj2;
+uadj = (eV[indmax]);
+vadj = (evpert[indmax]);
+wadj = (evpert2[indmax]);
+
+//Normalize
+complex try1 = int1d(Th)(x*(conj(uadj)*uadj + conj(vadj)*vadj + conj(wadj)*wadj));
+cout << "adj_norm_before = " << try1 << endl;
+uadj[]*=1./sqrt(abs(try1));	// normalize 
+vadj[]*=1./sqrt(abs(try1));
+wadj[]*=1./sqrt(abs(try1));
+
+complex norm = int1d(Th)(x*(conj(uadj)*uadj + conj(vadj)*vadj + conj(wadj)*wadj));
+cout << "adj_norm_after = " << norm << endl;
+
+// Further normalization <u+, u> = 1. (Biorthogonal normalization)
+complex normadjF = int1d(Th)(x*(conj(uadj)*upert + conj(vadj)*vpert + conj(wadj)*wpert));
+cout << "<u+, u>_before = " << normadjF << endl;
+complex alpha1 = normadjF^(1./1);
+uadj[]*=1./conj(alpha1);	// normalize 
+vadj[]*=1./conj(alpha1);
+wadj[]*=1./conj(alpha1);
+
+complex normadjF2 = int1d(Th)(x*(conj(upert)*uadj + conj(vpert)*vadj + conj(wpert)*wadj));
+cout << "<u+, u>_after = " << normadjF2 << endl;
+
+// Save final normalized adjoint eigenvectors.
+{ ofstream file(adjsubfolder + "uradj.dat");
+  file.precision(20);
+  file << uadj[] << endl;
+} 
+{ ofstream file(adjsubfolder + "utadj.dat");
+  file.precision(20);
+  file << vadj[] << endl;
+} 
+{ ofstream file(adjsubfolder + "uzadj.dat");
+  file.precision(20);
+  file << wadj[] << endl;
+} 
+
+// ---------------------------------------------------
+// Save adjoint leading eigenmode LaTeX-ready profile
+// ---------------------------------------------------
+{ ofstream adjeigenlatex(adjsubfolder + "adjoint_leading_eigenmode_"+ "m=" + mt + "_k="+ kz + "_idx=" + idx + "_nuT=" + turbVisc + "_.txt");
+  adjeigenlatex.precision(20);   
+
+  // Write header
+  adjeigenlatex << "r Realuadj Imaguadj Realvadj Imagvadj Realwadj Imagwadj" << endl;
+
+  real drsave = 0.0001;             // desired radial spacing
+  real lastr = 1e-10;               // initialize with a far value
+  
+  for (int i = 0; i < uadj.n; i++) 
+  { real ri = r[][i];
+    if (ri - lastr >= drsave - 1e-12) 
+    {   adjeigenlatex << ri << " " << real(uadj[][i]) << " " << imag(uadj[][i]) << " "
+                   << real(vadj[][i]) << " " << imag(vadj[][i]) << " " << real(wadj[][i]) << " "
+                   << imag(wadj[][i]) << endl;
+                   lastr = ri;
+    }
+  }
+}
+
+// Save the most unstable mode.
+ofstream file(adjsubfolder+"most_unstable_adj_" + "for_mt_" + mt + "_idx_" + idx + "_turb_model_" + turbVisc + ".txt",append);
+file.precision(20);
+if (kz == kstart) { file << "k growthrate frequency" << endl; }
+file<< kz << " "  << real(ev(indmax)) << " " << imag(ev(indmax)) << endl;

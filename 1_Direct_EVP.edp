@@ -1,0 +1,262 @@
+// =========================================================
+// 1_EVP_2D.edp
+// Direct Eigenvalue Problem
+// =========================================================
+
+// -----------------------------------------------------
+// Output file for k-loop eigenvalues (append mode)
+// -----------------------------------------------------
+ofstream kzeigen(dirsubfolder+"mt_" + mt + "_idx_" + idx + "_turb_model_" + turbVisc + "_kloop_eigenvalues.txt", append);
+kzeigen.precision(20);
+if (kz == kstart) { kzeigen << "k growthrate frequency" << endl; }
+
+real nu = 1./Rey;	               // viscosity
+// ---------------------------------------------
+// Direct EVP: operators and assembly
+// ---------------------------------------------
+macro der1(x, a) ( a + x*dx(a))//   					                    dx(x*a)
+macro der2(x, a, b) ( a*b + x*dx(a)*b + x*a*dx(b) )//   					dx(x*a*b)
+varf Mass([ur,ut,uz,p],[vr,vt,vz,q])  =  int1d(Th)(x*(uz*vz+ur*vr+ut*vt)) ; 
+
+varf ShiftOPm2([ur,ut,uz,p],[vr,vt,vz,q]) = 
+  int1d(Th)(- (x*( - 2.*Omb*ut           ) + ((ut0*1i*mt*ur + x*uz0*1i*kz*(ur)) - 2*ut0*ut))*vr         - x*(ur0*dx(ur) + ur*dx(ur0))*vr 
+            - (x*( 2.*Omb*ur   )  + ((ut0*1i*mt*ut + x*uz0*1i*kz*(ut)) + x*ur*dx(ut0)  + ut0*ur ))*vt   - x*(ur0*dx(ut) + (1./x)*ur0*ut)*vt 
+            - (((ut0*1i*mt*uz + x*uz0*1i*kz*(uz)) + x*ur*dx(uz0) ))*vz                                  - x*(ur0*dx(uz))*vz
+            - (nu+nut) * 
+                  ( x*kz^2*(ur)*(vr) - dx(ur)*vr + ((mt^2+1)*ur*vr + 2i*mt*ut*vr)/x +
+                    x*kz^2*(ut)*(vt) - dx(ut)*vt + ((mt^2+1)*ut*vt - 2i*mt*ur*vt)/x +
+                    x*kz^2*(uz)*(vz) - dx(uz)*vz + ((mt^2  )*uz*vz)/x
+                                                                )
+            - ( dx(ur)*(nu*der1(x,vr) + der2(x,nut,vr)) +
+                dx(ut)*(nu*der1(x,vt) + der2(x,nut,vt)) +
+                dx(uz)*(nu*der1(x,vz) + der2(x,nut,vz)) 
+              )
+            + (x*2.0*dx(nut)*dx(ur)*vr + 
+                     dx(nut)*(x*dx(ut) + 1i*mt*ur - ut)*vt +
+                     dx(nut)*(x*1i*kz*ur + x*dx(uz))*vz     
+            )
+            + p*( x*dx(vr) + vr - 1i*mt*vt - x*1i*kz*(vz))
+            - q*( x*dx(ur) + ur + 1i*mt*ut + x*1i*kz*(uz))
+            - q*p*0.00000000001
+      	   - sigma*(uz*vz+ur*vr+ut*vt+p*q*0.)*x
+           )
+            + on(2,ur=0., ut=0.,uz=0.);  // r = rMax BC
+
+// ---------------------------------------
+// Axis boundary condition matrix
+// ---------------------------------------
+matrix<complex> bcExpr;
+if (mt == 0) {
+    varf bcForm([ur, ut, uz, p], [vr, vt, vz, q]) = on(1, ur=0., ut=0.);
+    bcExpr = bcForm(VVh, VVh);
+} else if (abs(mt) == 1) {
+    varf bcForm([ur, ut, uz, p], [vr, vt, vz, q]) = on(1, uz=0., p=0.);
+    bcExpr = bcForm(VVh, VVh);
+} else {
+    varf bcForm([ur, ut, uz, p], [vr, vt, vz, q]) = on(1, ur=0., ut=0., uz=0.);
+    bcExpr = bcForm(VVh, VVh);
+}
+
+// Assemble Shift operator
+matrix<complex> OP = ShiftOPm2(VVh,VVh,solver=UMFPACK);
+
+// Add matrices (main operator + axis BC)
+OP += bcExpr; 
+
+matrix<complex> B  =    Mass(VVh,VVh,solver=UMFPACK); 
+// Other solver options: UMFPACK, GMRES, CG, sparsesolver
+
+// ----------------------------------------
+// Solve eigenvalue problem
+// ----------------------------------------
+complex[int] ev(nev); 
+VVh<complex>[int] [eV,evpert,evpert2,eV2](nev);
+
+int k = EigenValue(OP,B,sigma=sigma,value=ev,vector=eV,tol=1.e-10,maxit=2000,ncv=200);
+
+int iii = 1;
+Xh uxresult=real(eV[iii]);
+
+// Sort eigenvalues by growth rate and pick leading mode  
+real[int] freq = ev.im;
+real[int] grwt = ev.re;
+int[int] ii(0:grwt.n-1);
+sort(grwt,ii);              // sort min to max 
+int indmax = ii(ii.n-1);
+
+cout.precision(20);
+cout << "Max growth rate = " << real(ev(indmax)) << "...check..." << grwt.max << endl;
+
+// Extract leading eigenvector and normalize
+Xh<complex> upert, vpert, wpert, ppert, upert2, vpert2, wpert2, ppert2;
+upert = (eV[indmax]);
+vpert = (evpert[indmax]);
+wpert = (evpert2[indmax]);
+
+complex try1 = int1d(Th)(x*(conj(upert)*upert + conj(vpert)*vpert + conj(wpert)*wpert));
+cout << "norm_before = " << try1 << endl;
+upert[]*=1./sqrt(abs(try1));	// normalize 
+vpert[]*=1./sqrt(abs(try1));
+wpert[]*=1./sqrt(abs(try1));
+
+complex norm = int1d(Th)(x*(conj(upert)*upert + conj(vpert)*vpert + conj(wpert)*wpert));
+cout << "norm_after = " << norm << endl;
+
+// Save perturbation vectors to files (for immediate reading in adjoint and sensitivity.)
+{ ofstream file(dirsubfolder + "ur.dat"); file.precision(20); file << upert[] << endl; }
+{ ofstream file(dirsubfolder + "ut.dat"); file.precision(20); file << vpert[] << endl; }
+{ ofstream file(dirsubfolder + "uz.dat"); file.precision(20); file << wpert[] << endl; }
+{ ofstream file(dirsubfolder + "up.dat"); file.precision(20); file << ppert[] << endl; }
+
+// ----------------------------------------------------------------------------------------------------
+// Additional diagnostics (Rayleigh discriminant, vorticity), Billant & Gallaire 2013, p8, 15
+// ----------------------------------------------------------------------------------------------------
+func QsqFunc = kz^2 + mt^2/(r^2);
+func etaFunc = (1./(r))*(r*dx(ut0) + ut0);
+
+Xh Qsq, eta, genRayDis;
+
+Proj(Qsq, QsqFunc);
+Proj(eta, etaFunc);
+
+if(mt==0 && kz==0){ genRayDis = 0; }
+else { func genRayDisFunc = (1./Qsq) * ( kz^2*(2.*Omega*eta) - 2.*mt*kz*Omega*(dx(uz0)/(r)) );
+       Proj(genRayDis, genRayDisFunc); }
+
+Xh PhiTilde;
+Xh n1 = dx(Omega);
+Xh n2 = dx(uz0);
+
+real n1max = n1[].linfty;   // max |dx(Omega)|
+real n2max = n2[].linfty;   // max |dx(uz0)|
+
+if ( n1max < 1e-10 && n2max < 1e-10 ) {
+    PhiTilde = 0;
+}
+else { func PhiTildeFunc = 2*Omega*dx(Omega)*r*( dx(Omega)*r*eta + dx(uz0)*dx(uz0) ) / ( dx(Omega)*dx(Omega)*r*r + dx(uz0)*dx(uz0) ); 
+      Proj(PhiTilde, PhiTildeFunc);}
+
+cout << "reached here." << endl;
+// Declare for vorticity.
+Xh<complex> vortr, vortt, vortz, vortr2, vortt2, vortz2;
+
+// Print and save leading eigenvalue.
+cout.precision(20);
+cout << "Leading Eigenvalue = " << ev(indmax) << endl;
+kzeigen << kz << " " << real(ev(indmax)) << " " << imag(ev(indmax)) << endl;
+
+// Solve for vorticity
+func vortrFunc = (1./r)*1i*mt*wpert - 1i*kz*vpert;
+func vorttFunc = 1i*kz*upert - dx(wpert);
+func vortzFunc = (1./r)*vpert + dx(vpert) - (1./r)*1i*mt*upert;
+
+ComplexProj(vortr, vortrFunc);
+ComplexProj(vortt, vorttFunc);
+ComplexProj(vortz, vortzFunc);
+
+// ---------------------------------------------------
+// Save direct leading eigenmode LaTeX-ready profile
+// ---------------------------------------------------
+{ ofstream eigenlatex(dirsubfolder + "direct_leading_eigenmode_"+ "m=" + mt + "_k="+ kz + "_idx=" + idx + "_nuT=" + turbVisc + "_.txt");
+  eigenlatex.precision(20);   
+
+  // Write header
+  eigenlatex << "r Realupert Imagupert Realvpert Imagvpert Realwpert Imagwpert genRayDis PhiTilde realvortr imagvortr realvortt imagvortt realvortz imagvortz" << endl;
+
+  real drsave = 0.0001;             // desired radial spacing
+  real lastr = 1e-10;               // initialize with a far value
+
+  for (int i = 0; i < upert.n; i++) 
+  { real ri = r[][i];
+    if (ri - lastr >= drsave - 1e-12) 
+    {  eigenlatex << ri << " "
+               << real(upert[][i]) << " " << imag(upert[][i]) << " "
+               << real(vpert[][i]) << " " << imag(vpert[][i]) << " "
+               << real(wpert[][i]) << " " << imag(wpert[][i]) << " "
+               << genRayDis[][i]   << " " << PhiTilde[][i]    << " " << real(vortr[][i]) << " "
+               << imag(vortr[][i]) << " " << real(vortt[][i]) << " "
+               << imag(vortt[][i]) << " " << real(vortz[][i]) << " "
+               << imag(vortz[][i]) << endl;
+               lastr = ri; 
+    }
+  }
+}
+
+// Save the other unstable modes.
+complex[int] eigen(ii.n);
+int mode2flag = 0;
+int jjmax = 2;  
+
+// Save the whole unstable spectrum.
+ofstream file(dirsubfolder+"spectrum_kz_" + "for_mt_" + mt + "_idx_" + idx + "_turb_model_" + turbVisc + ".txt",append);
+file.precision(20);
+if (kz == kstart) { file << "k growthrate frequency" << endl; }
+file<< kz << " "  << real(ev(indmax)) << " " << imag(ev(indmax)) << endl;
+
+for (int jj=2;jj<ii.n;jj++ ) {
+int indmax2 = ii(ii.n-jj);
+
+if (ev(indmax2)>0.){
+    eigen[jj] = ev(indmax2);
+    cout << "eigenvalues " << eigen[jj] << endl;
+
+    upert2 = (eV[indmax2]);
+    vpert2 = (evpert[indmax2]);
+    wpert2 = (evpert2[indmax2]);
+
+    // Solve for vorticity
+    func vortr2Func = (1./r)*1i*mt*wpert2 - 1i*kz*vpert2;
+    func vortt2Func = 1i*kz*upert2 - dx(wpert2);
+    func vortz2Func = (1./r)*vpert2 + dx(vpert2) - (1./r)*1i*mt*upert2;
+
+    ComplexProj(vortr2, vortr2Func);
+    ComplexProj(vortt2, vortt2Func);
+    ComplexProj(vortz2, vortz2Func);
+
+    // Save leading eigenvalue to k-loop file
+    file.precision(20);
+    file<< kz << " "  << real(ev(indmax2)) << " " << imag(ev(indmax2)) << endl;
+    cout << "Save other modes...jj=" << jj << " " << ev(indmax2) << endl;
+
+    // Save 2nd eigenmodes separately
+    complex try2 = int1d(Th)(x*(conj(upert2)*upert2 + conj(vpert2)*vpert2 + conj(wpert2)*wpert2));
+    cout << "norm_before_2nd_mode = " << try2 << endl;
+
+    //Save for LaTEX (2nd modes)
+    { ofstream eigenlatex2nd(dirsubfolder + jj + "_branch_" + real(ev(indmax2)) + "_i" + imag(ev(indmax2)) + "_" + "m=" + mt + "_k="+ kz + "_idx=" + idx + "_nuT=" + turbVisc + "_.txt");
+      eigenlatex2nd.precision(8);   
+
+    // Write header
+    eigenlatex2nd << "r Realupert Imagupert Realvpert Imagvpert Realwpert Imagwpert realvortr imagvortr realvortt imagvortt realvortz imagvortz" << endl;
+
+    real drsave = 0.0001;             // desired radial spacing
+    real lastr = 1e-10;               // initialize with a far value
+
+      for (int i = 0; i < upert.n; i++) 
+      { real ri = r[][i];
+        if (ri - lastr >= drsave - 1e-12) 
+        {   eigenlatex2nd << ri << " "
+                      << real(upert2[][i]) << " " << imag(upert2[][i]) << " "
+                      << real(vpert2[][i]) << " " << imag(vpert2[][i]) << " "
+                      << real(wpert2[][i]) << " " << imag(wpert2[][i]) << " "
+                      << real(vortr2[][i]) << " " << imag(vortr2[][i]) << " "
+                      << real(vortt2[][i]) << " " << imag(vortt2[][i]) << " "
+                      << real(vortz2[][i]) << " " << imag(vortz2[][i]) << endl;
+                      lastr = ri;
+        }
+      }
+    }
+
+    // save 2nd mode components
+    { ofstream file(dirsubfolder + "ur_" + jj + ".dat"); file.precision(20); file << upert2[] << endl; }
+    { ofstream file(dirsubfolder + "ut_" + jj + ".dat"); file.precision(20); file << vpert2[] << endl; }
+    { ofstream file(dirsubfolder + "uz_" + jj + ".dat"); file.precision(20); file << wpert2[] << endl; }
+    { ofstream file(dirsubfolder + "up_" + jj + ".dat"); file.precision(20); file << ppert2[] << endl; }
+    
+    mode2flag = 1; // <- a second branch flag
+    cout << "An unstable second branch exists! " << endl;
+    jjmax = jj;
+    }
+}
+
+cout << "jjmax = " << jjmax << endl;

@@ -1,0 +1,19 @@
+  // Project the analytic function f onto the FE space Xh.
+  // fsol will hold the FEM representation of f,
+  // avoiding "singularities" at r = 0 or r = 1.
+
+// For real Projection
+Xh tf;  // test function
+macro Proj(fsol, f)  { 
+    solve proj(fsol, tf)
+        = int1d(Th)(fsol * tf)
+        - int1d(Th)(f * tf);
+} //
+
+// For complex Projection
+Xh<complex> ctf;  // test function
+macro ComplexProj(cfsol, cf)  { 
+    solve Complexproj(cfsol, ctf)
+        = int1d(Th)(cfsol * ctf)
+        - int1d(Th)(cf * ctf);
+} //

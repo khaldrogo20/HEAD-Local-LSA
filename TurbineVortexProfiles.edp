@@ -1,0 +1,187 @@
+real Omega0, Omega1, Omega2;
+real U0, U1, U2;
+real R1, R2;
+
+// turbulence parameters 
+real RC, RB, kC, kB;
+
+// Reference scales
+real Rold = 0.20;                 // reference radius of Susan-Resiga et al. 2006
+real Rref = 0.20;                 // S0 measurement location (Susan-Resiga et al. 2010), r = 0.2126 + 0.15 z [m]
+real Omegaref = 1000*2.*pi/60;    // n = 1000 rpm
+real Uref = Omegaref*Rref;
+
+real Rcorr = Rold/Rref;             // Correction factor for reference radius
+Rey = Uref * Rref / (1.003e-6);     // Reynolds number
+if (kz == kstart) { cout << "Reynolds No: " << Rey << endl;}
+
+//discharge coeff = 0.340
+if (idx==1){
+    Omega0 = 0.31765 * Rcorr;
+    Omega1 = -0.62888 * Rcorr;
+    Omega2 = 2.2545 * Rcorr;
+    U0 = 0.30697 * Rcorr;
+    U1 = 0.01056 * Rcorr;
+    U2 = -0.31889 * Rcorr;
+    R1 = 0.46643 * Rcorr;
+    R2 = 0.13051 * Rcorr;
+
+    RC = 0.0386 / Rref;
+    RB = 0.1909 / Rref;
+    kC = 5.6643 / (Uref * Uref);
+    kB = 1.8941 / (Uref * Uref);
+}
+//discharge coeff = 0.360
+else if (idx==2){
+    Omega0 = 0.26675 * Rcorr;
+    Omega1 = -0.79994 * Rcorr;
+    Omega2 = 3.3512 * Rcorr;
+    U0 = 0.31501 * Rcorr;
+    U1 = 0.07324 * Rcorr;
+    U2 = -0.29672 * Rcorr;
+    R1 = 0.36339 * Rcorr;
+    R2 = 0.09304 * Rcorr;
+
+    RC = 0.0309 / Rref;
+    RB = 0.1909 / Rref;
+    kC = 5.0110 / (Uref * Uref);
+    kB = 1.9900 / (Uref * Uref);
+}
+//discharge coeff = 0.368
+else if (idx==3){
+    Omega0 = 0.27113 * Rcorr;
+    Omega1 = -0.80310 * Rcorr;
+    Omega2 = 3.4960 * Rcorr;
+    U0 = 0.31991 * Rcorr;
+    U1 = 0.08710 * Rcorr;
+    U2 = -0.27350 * Rcorr;
+    R1 = 0.37291 * Rcorr;
+    R2 = 0.08305 * Rcorr;
+
+    RC = 0.0282 / Rref;
+    RB = 0.1899 / Rref;
+    kC = 5.0649 / (Uref * Uref);
+    kB = 2.0679 / (Uref * Uref);
+}
+//discharge coeff = 0.380
+else if (idx==4){
+    Omega0 = 0.27536 * Rcorr;
+    Omega1 = -0.81730 * Rcorr;
+    Omega2 = 3.5187 * Rcorr;
+    U0 = 0.32447 * Rcorr;
+    U1 = 0.10618 * Rcorr;
+    U2 = -0.23545 * Rcorr;
+    R1 = 0.38125 * Rcorr;
+    R2 = 0.07188 * Rcorr;
+
+    RC = 0.0252 / Rref;
+    RB = 0.1884 / Rref;
+    kC = 4.9031 / (Uref * Uref);
+    kB = 2.1339 / (Uref * Uref);
+}
+//discharge coeff = 0.390
+else if (idx==5){
+    Omega0 = 0.27419 * Rcorr;
+    Omega1 = -0.86579 * Rcorr;
+    Omega2 = 3.2687 * Rcorr;
+    U0 = 0.32916 * Rcorr;
+    U1 = 0.12677 * Rcorr;
+    U2 = -0.19061 * Rcorr;
+    R1 = 0.37819 * Rcorr;
+    R2 = 0.06502 * Rcorr;
+
+    RC = 0.0235 / Rref;
+    RB = 0.1874 / Rref;
+    kC = 4.4535 / (Uref * Uref);
+    kB = 2.0619 / (Uref * Uref);
+}
+//discharge coeff = 0.410
+else if (idx==6){
+    Omega0 = 0.28802 * Rcorr;
+    Omega1 = -0.96687 * Rcorr;
+    Omega2 = 1.4590 * Rcorr;
+    U0 = 0.33623 * Rcorr;
+    U1 = 0.19121 * Rcorr;
+    U2 = -0.09215 * Rcorr;
+    R1 = 0.39108 * Rcorr;
+    R2 = 0.05012 * Rcorr;
+
+    RC = 0.02352941176470591 / Rref;
+    RB = 0.18781512605042017 / Rref;
+    kC = 2.8410256410256407 / (Uref * Uref);
+    kB = 2.051282051282051 / (Uref * Uref);
+}
+//discharge coeff = 0.3496 for 0.95 BEP  (interpolated using the fitted curve, see Matlab code)
+else if (idx==7){
+    Omega0 = 0.2832 * Rcorr;
+    Omega1 = -0.7028 * Rcorr;
+    Omega2 = 3.2229 * Rcorr;
+    U0 = 0.3104 * Rcorr;
+    U1 = 0.0423 * Rcorr;
+    U2 = -0.3071 * Rcorr;
+    R1 = 0.4070 * Rcorr;
+    R2 = 0.1064 * Rcorr;
+
+    RC = 0.0341 / Rref;
+    RB = 0.1904 / Rref;
+    kC = 4.5467 / (Uref * Uref);
+    kB = 1.9812 / (Uref * Uref);
+}
+//discharge coeff = 0.__  (arbitrary point bet. idx1 and idx2)
+else if (idx==8){
+    real n = 0.2;
+    Omega0 = (0.31765 + n*(0.26675 - 0.31765)) * Rcorr;
+    Omega1 = (-0.62888 + n*(-0.79994 - -0.62888)) * Rcorr;
+    Omega2 = (2.2545 + n*(3.3512 - 2.2545)) * Rcorr;
+    U0 = (0.30697 + n*(0.31501 - 0.30697)) * Rcorr;
+    U1 = (0.01056 + n*(0.07324 - 0.01056)) * Rcorr;
+    U2 = (-0.31889 + n*(-0.29672 - -0.31889)) * Rcorr;
+    R1 = (0.46643 + n*(0.36339 - 0.46643)) * Rcorr;
+    R2 = (0.13051 + n*(0.09304 - 0.13051)) * Rcorr;
+
+    RC = (0.0386 + n*(0.0309 - 0.0386)) / Rref;
+    RB = (0.1909 + n*(0.1909 -0.1909)) / Rref;
+    kC = (5.6643 + n*(5.0110 - 5.6643 )) / (Uref * Uref);
+    kB = (1.8941 + n*(1.9900 - 1.8941)) / (Uref * Uref);
+}
+else if (idx==9){
+    real n = 0.1;
+    Omega0 = (0.31765 + n*(0.26675 - 0.31765)) * Rcorr;
+    Omega1 = (-0.62888 + n*(-0.79994 - -0.62888)) * Rcorr;
+    Omega2 = (2.2545 + n*(3.3512 - 2.2545)) * Rcorr;
+    U0 = (0.30697 + n*(0.31501 - 0.30697)) * Rcorr;
+    U1 = (0.01056 + n*(0.07324 - 0.01056)) * Rcorr;
+    U2 = (-0.31889 + n*(-0.29672 - -0.31889)) * Rcorr;
+    R1 = (0.46643 + n*(0.36339 - 0.46643)) * Rcorr;
+    R2 = (0.13051 + n*(0.09304 - 0.13051)) * Rcorr;
+
+    RC = (0.0386 + n*(0.0309 - 0.0386)) / Rref;
+    RB = (0.1909 + n*(0.1909 -0.1909)) / Rref;
+    kC = (5.6643 + n*(5.0110 - 5.6643 )) / (Uref * Uref);
+    kB = (1.8941 + n*(1.9900 - 1.8941)) / (Uref * Uref);
+}
+else if (idx==10){
+    real n = 0.07;
+    Omega0 = (0.31765 + n*(0.26675 - 0.31765)) * Rcorr;
+    Omega1 = (-0.62888 + n*(-0.79994 - -0.62888)) * Rcorr;
+    Omega2 = (2.2545 + n*(3.3512 - 2.2545)) * Rcorr;
+    U0 = (0.30697 + n*(0.31501 - 0.30697)) * Rcorr;
+    U1 = (0.01056 + n*(0.07324 - 0.01056)) * Rcorr;
+    U2 = (-0.31889 + n*(-0.29672 - -0.31889)) * Rcorr;
+    R1 = (0.46643 + n*(0.36339 - 0.46643)) * Rcorr;
+    R2 = (0.13051 + n*(0.09304 - 0.13051)) * Rcorr;
+
+    RC = (0.0386 + n*(0.0309 - 0.0386)) / Rref;
+    RB = (0.1909 + n*(0.1909 -0.1909)) / Rref;
+    kC = (5.6643 + n*(5.0110 - 5.6643 )) / (Uref * Uref);
+    kB = (1.8941 + n*(1.9900 - 1.8941)) / (Uref * Uref);
+}
+else{
+    cout << "Invalid baseflow id." << endl;
+    exit(0);
+}
+
+//cout << RC << endl;
+//cout << RB << endl;
+//cout << kC << endl;
+//cout << kB << endl;
