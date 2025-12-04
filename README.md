@@ -156,7 +156,7 @@ VTK files for post-processing (ParaView or Tecplot)
 This code supports the results presented in:
 
 L. Toledo, A. Gesla, and E. Yim (2025)
-Local linear stability analysis of swirling draft-tube vortex structures in hydraulic turbines
+Linear stability and sensitivity analysis of the swirling jet in a Francis turbine draft tube
 Journal of Fluid Mechanics (under review)
 
 The final citation and DOI will be added upon acceptance.
